@@ -7,6 +7,7 @@ import MeetsPage     from './MeetsPage'
 import MeetDetailPage    from './MeetDetailPage'
 import EventDetailPage   from './EventDetailPage'
 import SwimmersPage  from './SwimmersPage'
+import TeamsPage     from './TeamsPage'
 
 function Guard({ children }: { children: React.ReactNode }) {
   return useAuth().token ? <>{children}</> : <Navigate to="/login" replace />
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="meets/:meetId" element={<MeetDetailPage />} />
           <Route path="meets/:meetId/events/:eventId" element={<EventDetailPage />} />
           <Route path="swimmers" element={<SwimmersPage />} />
+          <Route path="teams" element={<TeamsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

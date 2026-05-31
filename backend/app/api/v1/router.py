@@ -6,6 +6,7 @@ from app.api.v1.operations import (
     entries_router, heats_router, results_router,
     assignments_router, awards_router, reports_router,
 )
+from app.api.v1.excel import excel_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth_router)
@@ -19,3 +20,4 @@ api_router.include_router(results_router)
 api_router.include_router(assignments_router)
 api_router.include_router(awards_router)
 api_router.include_router(reports_router)
+api_router.include_router(excel_router)

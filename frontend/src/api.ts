@@ -91,6 +91,25 @@ export const reportsApi = {
     api.post(`/meets/${meetId}/reports/results`, {}, { responseType: 'blob' }),
 }
 
+export const excelApi = {
+  swimmers: {
+    template: () => api.get('/swimmers/excel/template', { responseType: 'blob' }),
+    import:   (file: File) => {
+      const form = new FormData(); form.append('file', file)
+      return api.post('/swimmers/excel/import', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+    },
+    export: () => api.get('/swimmers/excel/export', { responseType: 'blob' }),
+  },
+  teams: {
+    template: () => api.get('/teams/excel/template', { responseType: 'blob' }),
+    import:   (file: File) => {
+      const form = new FormData(); form.append('file', file)
+      return api.post('/teams/excel/import', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+    },
+    export: () => api.get('/teams/excel/export', { responseType: 'blob' }),
+  },
+}
+
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
