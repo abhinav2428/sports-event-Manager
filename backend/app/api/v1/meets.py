@@ -90,6 +90,17 @@ def get_event(meet_id: str, event_id: str,
     return _event_out(ev)
 
 
+# Direct lookup by event_id alone (used by RecorderPage)
+direct_events_router = APIRouter(prefix="/events", tags=["Events"])
+
+@direct_events_router.get("/{event_id}/detail", response_model=EventOut)
+def get_event_direct(event_id: str, db: Session = Depends(get_db),
+                     _: User = Depends(get_current_user)):
+    ev = db.get(SwimEvent, event_id)
+    if not ev: raise HTTPException(404, "Event not found")
+    return _event_out(ev)
+
+
 def _event_out(ev: SwimEvent) -> EventOut:
     return EventOut(
         id=ev.id, meet_id=ev.meet_id, event_number=ev.event_number,

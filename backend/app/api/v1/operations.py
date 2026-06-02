@@ -198,9 +198,21 @@ def get_event_results(event_id: str, db: Session = Depends(get_db),
 
 @results_router.patch("/{result_id}/edit", response_model=ResultOut)
 def edit_result(result_id: str, data: ResultUpdate,
-                db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+                db: Session = Depends(get_db),
+                current_user: User = Depends(require_recorder_or_admin)):
     result = db.get(TimeResult, result_id)
     if not result: raise HTTPException(404, "Result not found")
+
+    # Recorders may only edit DRAFT results on their assigned events
+    if current_user.user_type == UserType.recorder:
+        event_id = _event_id_for_result(db, result)
+        assignment = db.query(EventAssignment).filter_by(
+            event_id=event_id, recorder_id=current_user.id).first() if event_id else None
+        if not assignment:
+            raise HTTPException(403, "Not assigned to this event")
+        if result.status != "draft":
+            raise HTTPException(403, "Recorders may only edit draft results")
+
     try:
         result = result_service.edit_result(db, result, data, current_user.id)
     except ValueError as e:
@@ -210,10 +222,19 @@ def edit_result(result_id: str, data: ResultUpdate,
 
 @results_router.patch("/{result_id}/save", response_model=ResultOut)
 def save_result(result_id: str, db: Session = Depends(get_db),
-                _: User = Depends(require_admin)):
-    """Admin: DRAFT → SAVED"""
+                current_user: User = Depends(require_recorder_or_admin)):
+    """Recorder or Admin: DRAFT → SAVED (recorder submits for review)."""
     result = db.get(TimeResult, result_id)
     if not result: raise HTTPException(404, "Result not found")
+
+    # Recorders may only save DRAFT results on their assigned events
+    if current_user.user_type == UserType.recorder:
+        event_id = _event_id_for_result(db, result)
+        assignment = db.query(EventAssignment).filter_by(
+            event_id=event_id, recorder_id=current_user.id).first() if event_id else None
+        if not assignment:
+            raise HTTPException(403, "Not assigned to this event")
+
     try:
         result = result_service.save_result(db, result)
     except ValueError as e:
@@ -262,6 +283,19 @@ def _result_out(r: TimeResult) -> ResultOut:
     )
 
 
+# ── Helpers ────────────────────────────────────────────────────
+
+def _event_id_for_result(db: Session, result: TimeResult):
+    """Return the event_id for a result (individual or relay)."""
+    if result.individual_entry_id:
+        e = db.get(IndividualEntry, result.individual_entry_id)
+        return e.event_id if e else None
+    if result.relay_entry_id:
+        e = db.get(RelayEntry, result.relay_entry_id)
+        return e.event_id if e else None
+    return None
+
+
 # ── Assignments ────────────────────────────────────────────────
 
 @assignments_router.post("", response_model=AssignmentOut)
@@ -283,6 +317,29 @@ def assign_recorder(data: AssignmentCreate, db: Session = Depends(get_db),
     return AssignmentOut(id=a.id, event_id=a.event_id, event_name=event.name,
                          recorder_id=a.recorder_id, recorder_name=recorder.name,
                          admin_id=a.admin_id, assigned_at=a.assigned_at)
+
+
+@assignments_router.delete("/{assignment_id}", status_code=204)
+def remove_assignment(assignment_id: str, db: Session = Depends(get_db),
+                      _: User = Depends(require_admin)):
+    a = db.get(EventAssignment, assignment_id)
+    if not a: raise HTTPException(404, "Assignment not found")
+    db.delete(a); db.commit()
+
+
+@assignments_router.get("/my", response_model=List[AssignmentOut])
+def my_assignments(db: Session = Depends(get_db),
+                   current_user: User = Depends(get_current_user)):
+    """Recorder: all events assigned to me."""
+    items = db.query(EventAssignment).filter(
+        EventAssignment.recorder_id == current_user.id).all()
+    return [AssignmentOut(
+        id=a.id, event_id=a.event_id,
+        event_name=a.event.name if a.event else None,
+        recorder_id=a.recorder_id,
+        recorder_name=a.recorder.name if a.recorder else None,
+        admin_id=a.admin_id, assigned_at=a.assigned_at,
+    ) for a in items]
 
 
 @assignments_router.get("/event/{event_id}", response_model=List[AssignmentOut])

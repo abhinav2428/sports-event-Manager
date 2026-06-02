@@ -7,5 +7,9 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     proxy: { '/api': { target: 'http://api:8000', changeOrigin: true } },
+    watch: {
+      usePolling: true,   // needed for Docker volume mounts on Windows
+      interval: 1000,
+    },
   },
 })

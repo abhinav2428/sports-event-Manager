@@ -48,6 +48,7 @@ export const eventsApi = {
   list:   (meetId: string) => api.get(`/meets/${meetId}/events`),
   create: (meetId: string, d: object) => api.post(`/meets/${meetId}/events`, d),
   get:    (meetId: string, evId: string) => api.get(`/meets/${meetId}/events/${evId}`),
+  getMy:  (evId: string) => api.get(`/events/${evId}/detail`),
 }
 
 export const entriesApi = {
@@ -76,7 +77,9 @@ export const resultsApi = {
 export const assignmentsApi = {
   assign:   (evId: string, recId: string) =>
     api.post('/assignments', { event_id: evId, recorder_id: recId }),
+  remove:   (assignmentId: string) => api.delete(`/assignments/${assignmentId}`),
   forEvent: (evId: string) => api.get(`/assignments/event/${evId}`),
+  my:       () => api.get('/assignments/my'),
 }
 
 export const awardsApi = {
