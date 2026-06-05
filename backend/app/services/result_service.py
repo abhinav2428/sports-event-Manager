@@ -82,15 +82,23 @@ def _recompute_rankings(db: Session, result: TimeResult):
     ind_entries = db.query(IndividualEntry).filter_by(event_id=event_id).all()
     rel_entries = db.query(RelayEntry).filter_by(event_id=event_id).all()
 
-    results = []
+    all_finalized = []
     for e in ind_entries:
-        if e.result and e.result.status == ResultStatus.finalized and e.result.final_time_ms:
-            results.append(e.result)
+        if e.result and e.result.status == ResultStatus.finalized:
+            all_finalized.append(e.result)
     for e in rel_entries:
-        if e.result and e.result.status == ResultStatus.finalized and e.result.final_time_ms:
-            results.append(e.result)
+        if e.result and e.result.status == ResultStatus.finalized:
+            all_finalized.append(e.result)
 
-    results.sort(key=lambda r: r.final_time_ms)
-    for rank, r in enumerate(results, start=1):
+    # Only rank results with a valid time (no DQ/DNS/DNF)
+    rankable = [r for r in all_finalized if r.final_time_ms and not r.dns and not r.dnf and not r.dq]
+    non_rankable = [r for r in all_finalized if not (r.final_time_ms and not r.dns and not r.dnf and not r.dq)]
+
+    rankable.sort(key=lambda r: r.final_time_ms)
+    for rank, r in enumerate(rankable, start=1):
         r.rank = rank
+    # Clear stale ranks from DQ/DNS/DNF results
+    for r in non_rankable:
+        r.rank = None
     db.commit()
+

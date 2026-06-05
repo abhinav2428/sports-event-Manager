@@ -9,6 +9,7 @@ import EventDetailPage   from './EventDetailPage'
 import SwimmersPage  from './SwimmersPage'
 import TeamsPage     from './TeamsPage'
 import RecorderPage  from './RecorderPage'
+import CertificatePage from './CertificatePage'
 
 function Guard({ children }: { children: React.ReactNode }) {
   return useAuth().token ? <>{children}</> : <Navigate to="/login" replace />
@@ -19,6 +20,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        {/* Certificate page: opens in new tab, no sidebar layout needed */}
+        <Route path="/certificate" element={<CertificatePage />} />
         <Route path="/" element={<Guard><Layout /></Guard>}>
           <Route index element={<DashboardPage />} />
           <Route path="meets" element={<MeetsPage />} />
@@ -33,3 +36,4 @@ export default function App() {
     </BrowserRouter>
   )
 }
+

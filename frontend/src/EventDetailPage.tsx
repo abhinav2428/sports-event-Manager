@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Shuffle, CheckCircle, Save, Edit2, UserPlus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, Shuffle, CheckCircle, Save, Edit2, UserPlus, Trash2, Award } from 'lucide-react'
 import { eventsApi, entriesApi, swimmersApi, teamsApi, heatApi, resultsApi, assignmentsApi, authApi } from './api'
 import { useAuth } from './authStore'
 import type { SwimEvent, IndividualEntry, RelayEntry, TimeResult, Swimmer, Team, Assignment } from './types'
@@ -227,7 +227,7 @@ export default function EventDetailPage() {
                       <th className="text-left px-4 py-2 font-medium text-slate-500 text-xs">Time</th>
                       <th className="text-left px-4 py-2 font-medium text-slate-500 text-xs">Rank</th>
                       <th className="text-left px-4 py-2 font-medium text-slate-500 text-xs">Status</th>
-                      {isAdmin() && <th className="text-left px-4 py-2 font-medium text-slate-500 text-xs">Actions</th>}
+                      <th className="text-left px-4 py-2 font-medium text-slate-500 text-xs">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -242,10 +242,17 @@ export default function EventDetailPage() {
                         <td className="px-4 py-2.5">
                           <span className={STATUS_BADGE[statusUpper] || 'badge-draft text-xs uppercase tracking-wider font-bold'}>{r.status}</span>
                         </td>
-                        {isAdmin() && (
-                          <td className="px-4 py-2.5">
+                        <td className="px-4 py-2.5">
                             <div className="flex gap-1">
-                              {statusUpper !== 'FINALIZED' && (
+                              {statusUpper === 'FINALIZED' ? (
+                                <button
+                                  onClick={() => window.open(`/certificate?resultId=${r.id}`, '_blank')}
+                                  className="btn-secondary py-1 px-2 text-xs flex items-center gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+                                  title="Download Certificate"
+                                >
+                                  <Award size={11}/>Certificate
+                                </button>
+                              ) : isAdmin() ? (
                                 <>
                                   <button onClick={()=>openEdit(r)}
                                     className="btn-ghost py-1 px-2 text-xs flex items-center gap-1">
@@ -264,10 +271,9 @@ export default function EventDetailPage() {
                                     </button>
                                   )}
                                 </>
-                              )}
+                              ) : null}
                             </div>
                           </td>
-                        )}
                       </tr>
                     )})}
                   </tbody>

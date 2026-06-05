@@ -257,6 +257,75 @@ def get_dq_codes():
     return DQ_CODES
 
 
+@results_router.get("/{result_id}/certificate-data")
+def get_certificate_data(result_id: str, db: Session = Depends(get_db),
+                         _: User = Depends(get_current_user)):
+    """Return structured data needed to render a participation/merit certificate."""
+    result = db.get(TimeResult, result_id)
+    if not result:
+        raise HTTPException(404, "Result not found")
+    if result.status != "finalized":
+        raise HTTPException(400, "Certificate is only available for finalized results")
+
+    # Gather event and meet
+    event_id = _event_id_for_result(db, result)
+    event = db.get(SwimEvent, event_id) if event_id else None
+    meet = event.meet if event and hasattr(event, "meet") else None
+
+    # ── Compute live rank among all finalized results in this event ──
+    # This avoids stale stored ranks caused by out-of-order finalization.
+    live_rank = None
+    if event_id and result.final_time_ms and not result.dns and not result.dnf and not result.dq:
+        ind_entries = db.query(IndividualEntry).filter_by(event_id=event_id).all()
+        rel_entries = db.query(RelayEntry).filter_by(event_id=event_id).all()
+
+        finalized_times = []
+        for e in ind_entries:
+            r = e.result
+            if r and r.status == "finalized" and r.final_time_ms and not r.dns and not r.dnf and not r.dq:
+                finalized_times.append(r.final_time_ms)
+        for e in rel_entries:
+            r = e.result
+            if r and r.status == "finalized" and r.final_time_ms and not r.dns and not r.dnf and not r.dq:
+                finalized_times.append(r.final_time_ms)
+
+        finalized_times.sort()
+        try:
+            live_rank = finalized_times.index(result.final_time_ms) + 1
+        except ValueError:
+            live_rank = None
+
+    # Format position label
+    if live_rank == 1:
+        position = "1st"
+    elif live_rank == 2:
+        position = "2nd"
+    elif live_rank == 3:
+        position = "3rd"
+    elif live_rank:
+        position = f"{live_rank}th"
+    elif result.dq:
+        position = "DQ"
+    elif result.dns:
+        position = "DNS"
+    elif result.dnf:
+        position = "DNF"
+    else:
+        position = "—"
+
+    return {
+        "participant_name": result.participant_name,
+        "event_name": event.name if event else "Swimming Event",
+        "meet_name": meet.name if meet else "Sports Meet",
+        "meet_venue": meet.venue if meet and meet.venue else None,
+        "position": position,
+        "rank": live_rank,
+        "time_display": result.format_time(),
+        "finalized_at": result.finalized_at.isoformat() if result.finalized_at else None,
+        "is_relay": event.is_relay if event else False,
+    }
+
+
 def _result_out(r: TimeResult) -> ResultOut:
     heat_number, lane = None, None
     if r.individual_entry:

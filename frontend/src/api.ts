@@ -66,12 +66,13 @@ export const heatApi = {
 }
 
 export const resultsApi = {
-  forEvent:  (evId: string) => api.get(`/results/event/${evId}`),
-  record:    (d: object) => api.post('/results', d),
-  edit:      (id: string, d: object) => api.patch(`/results/${id}/edit`, d),
-  save:      (id: string) => api.patch(`/results/${id}/save`),
-  finalize:  (id: string) => api.patch(`/results/${id}/finalize`),
-  dqCodes:   () => api.get('/results/dq-codes'),
+  forEvent:       (evId: string) => api.get(`/results/event/${evId}`),
+  record:         (d: object) => api.post('/results', d),
+  edit:           (id: string, d: object) => api.patch(`/results/${id}/edit`, d),
+  save:           (id: string) => api.patch(`/results/${id}/save`),
+  finalize:       (id: string) => api.patch(`/results/${id}/finalize`),
+  dqCodes:        () => api.get('/results/dq-codes'),
+  certificateData:(id: string) => api.get(`/results/${id}/certificate-data`),
 }
 
 export const assignmentsApi = {
