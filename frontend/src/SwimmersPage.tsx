@@ -3,12 +3,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Plus, Users, FileSpreadsheet, Upload, Download } from 'lucide-react'
 import { swimmersApi, excelApi, downloadBlob } from './api'
 import { useAuth } from './authStore'
-import type { Swimmer } from './types'
+import type { Participant } from './types'
 
 interface ImportSummary { created: number; updated: number; skipped: number; errors: string[] }
 
 export default function SwimmersPage() {
-  const [swimmers, setSwimmers] = useState<Swimmer[]>([])
+  const [swimmers, setSwimmers] = useState<Participant[]>([])
   const [show, setShow] = useState(false)
   const [form, setForm] = useState({ name:'', roll_number:'', college:'', gender:'M', year_of_study:'', email:'' })
   const { isAdmin } = useAuth()
@@ -61,10 +61,10 @@ export default function SwimmersPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="page-title mb-0">Swimmers</h1>
+        <h1 className="page-title mb-0">Participants</h1>
         {isAdmin() && (
           <button onClick={() => setShow(!show)} className="btn-primary flex items-center gap-2">
-            <Plus size={16}/>Register Swimmer
+            <Plus size={16}/>Register Participant
           </button>
         )}
       </div>
@@ -115,7 +115,7 @@ export default function SwimmersPage() {
 
       {show && (
         <div className="card p-5 mb-6">
-          <h2 className="font-semibold mb-4">Register Swimmer</h2>
+          <h2 className="font-semibold mb-4">Register Participant</h2>
           <form onSubmit={submit} className="grid grid-cols-3 gap-4">
             <div><label className="label">Full Name</label><input className="input" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></div>
             <div><label className="label">Roll Number</label><input className="input" required value={form.roll_number} onChange={e=>setForm({...form,roll_number:e.target.value})}/></div>
@@ -152,7 +152,7 @@ export default function SwimmersPage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0
-              ? <tr><td colSpan={5} className="text-center py-10 text-slate-400"><Users size={32} className="mx-auto mb-2 text-slate-200"/>No swimmers</td></tr>
+              ? <tr><td colSpan={5} className="text-center py-10 text-slate-400"><Users size={32} className="mx-auto mb-2 text-slate-200"/>No participants</td></tr>
               : filtered.map(s => (
                 <tr key={s.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium">{s.name}</td>

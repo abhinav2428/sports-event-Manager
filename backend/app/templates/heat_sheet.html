@@ -6,9 +6,9 @@
   body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #111; }
   h1   { font-size: 18px; text-align: center; margin-bottom: 4px; }
   h2   { font-size: 13px; text-align: center; color: #555; margin-top: 0; }
-  h3   { font-size: 12px; margin: 14px 0 4px; background: #003366; color: #fff;
+  h3   { font-size: 12px; margin: 14px 0 4px; background: {{ pdf_header_color|default('#003366') }}; color: #fff;
          padding: 4px 8px; border-radius: 3px; }
-  h4   { font-size: 11px; margin: 8px 0 2px; color: #003366; }
+  h4   { font-size: 11px; margin: 8px 0 2px; color: {{ pdf_header_color|default('#003366') }}; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
   th   { background: #dce9f5; text-align: center; padding: 3px 6px; border: 1px solid #aaa; }
   td   { text-align: center; padding: 3px 6px; border: 1px solid #ccc; }
@@ -18,10 +18,10 @@
 </head>
 <body>
   <h1>{{ meet.name }}</h1>
-  <h2>Official Heat Sheet — {{ meet.venue }}{% if meet.city %}, {{ meet.city }}{% endif %}</h2>
+  <h2>{{ sport_name }} — Official Heat Sheet — {{ meet.venue }}{% if meet.city %}, {{ meet.city }}{% endif %}</h2>
   <p style="text-align:center; color:#555; font-size:10px;">
     {{ meet.start_date }}{% if meet.end_date %} – {{ meet.end_date }}{% endif %} |
-    {{ meet.pool_length }}m pool | {{ meet.lanes }}-lane
+    {{ venue_config_label }}: {{ meet.venue_config }} | {{ meet.lanes }}-lane
   </p>
 
   {% for event in events %}
@@ -29,7 +29,7 @@
   {% for heat in event.heats %}
   <h4>Heat {{ heat.heat_number }}</h4>
   <table>
-    <tr><th>Lane</th><th>Name / Team</th><th>Seed Time</th></tr>
+    <tr><th>Lane</th><th>{{ participant_label }} / Team</th><th>{{ seed_performance_label }}</th></tr>
     {% for a in heat.lanes %}
     <tr>
       <td>{{ a.lane }}</td>

@@ -59,3 +59,10 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Local Test Scripts
+backend/test_*.py
+backend/debug_*.py
+backend/check_*.py
+backend/read_*.py
+

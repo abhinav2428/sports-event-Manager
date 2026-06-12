@@ -3,35 +3,68 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Plus, Download, FileText } from 'lucide-react'
 import { meetsApi, eventsApi, reportsApi, awardsApi, downloadBlob } from './api'
 import { useAuth } from './authStore'
-import type { Meet, SwimEvent, Award } from './types'
+import type { Meet, SportEvent, Award } from './types'
+import { getSportConfig, disciplineName, isFieldDiscipline, isRelayDiscipline } from './sportConfig'
 
-const STROKES = ['freestyle','backstroke','breaststroke','butterfly','individual_medley','relay_freestyle','relay_medley']
-const GENDERS = ['M','F','mixed']
-const STATUS_BADGE: Record<string,string> = {
-  upcoming:'badge-upcoming', seeded:'badge-seeded', ongoing:'badge-ongoing', completed:'badge-done',
+const GENDERS = ['M', 'F', 'mixed']
+const STATUS_BADGE: Record<string, string> = {
+  upcoming: 'badge-upcoming', seeded: 'badge-seeded',
+  ongoing: 'badge-ongoing', completed: 'badge-done',
 }
 
 export default function MeetDetailPage() {
   const { meetId } = useParams<{meetId:string}>()
-  const [meet, setMeet]   = useState<Meet|null>(null)
-  const [events, setEvents] = useState<SwimEvent[]>([])
+  const [meet, setMeet]     = useState<Meet|null>(null)
+  const [events, setEvents] = useState<SportEvent[]>([])
   const [awards, setAwards] = useState<Award[]>([])
-  const [show, setShow]   = useState(false)
+  const [show, setShow]     = useState(false)
   const [pdfLoading, setPdfLoading] = useState('')
-  const [form, setForm]   = useState({event_number:1, name:'', stroke:'freestyle', distance:100, gender:'M', is_relay:false, relay_legs:1})
+  const [form, setForm] = useState({
+    event_number: 1,
+    name: '',
+    discipline: '',  // will be set on load
+    distance: 100,
+    gender: 'M',
+    is_relay: false,
+    is_field: false,
+    relay_legs: 1,
+  })
   const { isAdmin } = useAuth()
 
   const load = () => {
-    meetsApi.get(meetId!).then(r => setMeet(r.data))
+    meetsApi.get(meetId!).then(r => {
+      const m = r.data;
+      setMeet(m);
+      const conf = getSportConfig(m.sport_type);
+      setForm(prev => ({...prev, discipline: conf.disciplines[0]}));
+    })
     eventsApi.list(meetId!).then(r => setEvents(r.data))
     awardsApi.list(meetId!).then(r => setAwards(r.data))
   }
   useEffect(() => { load() }, [meetId])
 
+  // Auto-detect field & relay when discipline changes
+  const handleDisciplineChange = (disc: string) => {
+    const field = isFieldDiscipline(disc, meet?.sport_type || 'swimming')
+    const relay = isRelayDiscipline(disc, meet?.sport_type || 'swimming')
+    // field events use distance=0; otherwise keep current or default
+    // field events use distance=0; otherwise keep current distance
+    const dist = field ? 0 : form.distance
+    setForm({
+      ...form,
+      discipline: disc,
+      is_field: field,
+      is_relay: relay,
+      relay_legs: relay ? 4 : 1,
+      distance: dist,
+    })
+  }
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     await eventsApi.create(meetId!, {
-      ...form, relay_legs: form.is_relay ? 4 : 1,
+      ...form,
+      relay_legs: form.is_relay ? 4 : 1,
     })
     setShow(false); load()
   }
@@ -53,7 +86,10 @@ export default function MeetDetailPage() {
         <div>
           <Link to="/meets" className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-600 mb-2"><ArrowLeft size={14}/>All Meets</Link>
           <h1 className="text-2xl font-bold">{meet.name}</h1>
-          <p className="text-slate-500 text-sm mt-1">{meet.venue||'No venue'} · {meet.start_date} → {meet.end_date} · {meet.course} · {meet.pool_lanes} lanes</p>
+          <p className="text-slate-500 text-sm mt-1">
+            {meet.venue||'No venue'} · {meet.start_date} → {meet.end_date}
+            · {getSportConfig(meet.sport_type).venueConfigLabel}: {meet.venue_config} · {meet.lanes} lanes
+          </p>
         </div>
         {isAdmin() && (
           <div className="flex gap-2">
@@ -74,25 +110,48 @@ export default function MeetDetailPage() {
 
       {show && (
         <div className="card p-5 mb-6">
-          <h2 className="font-semibold mb-4">Add Swimming Event</h2>
+          <h2 className="font-semibold mb-4">Add {getSportConfig(meet.sport_type).sportName} Event</h2>
           <form onSubmit={submit} className="grid grid-cols-3 gap-4">
             <div><label className="label">Event #</label><input className="input" type="number" required value={form.event_number} onChange={e=>setForm({...form,event_number:+e.target.value})}/></div>
-            <div className="col-span-2"><label className="label">Event Name</label><input className="input" required value={form.name} placeholder="Men's 100m Freestyle" onChange={e=>setForm({...form,name:e.target.value})}/></div>
-            <div><label className="label">Stroke</label>
-              <select className="input" value={form.stroke} onChange={e=>setForm({...form,stroke:e.target.value})}>
-                {STROKES.map(s=><option key={s} value={s}>{s.replace('_',' ')}</option>)}
+            <div className="col-span-2"><label className="label">Event Name</label><input className="input" required value={form.name} placeholder={`e.g. Men's 100m Sprint`} onChange={e=>setForm({...form,name:e.target.value})}/></div>
+
+            {/* Discipline — was Stroke */}
+            <div><label className="label">{getSportConfig(meet.sport_type).disciplineLabel}</label>
+              <select className="input" value={form.discipline} onChange={e=>handleDisciplineChange(e.target.value)}>
+                {getSportConfig(meet.sport_type).disciplines.map(d => (
+                  <option key={d} value={d}>{disciplineName(d, meet.sport_type)}</option>
+                ))}
               </select>
             </div>
-            <div><label className="label">Distance (m/leg)</label><input className="input" type="number" required value={form.distance} onChange={e=>setForm({...form,distance:+e.target.value})}/></div>
+
+            {/* Distance — 0 for field events (auto-set) */}
+            <div>
+              <label className="label">
+                {form.is_field ? 'Distance (0 = field event)' : 'Distance (m/leg)'}
+              </label>
+              <input className="input" type="number" required value={form.distance}
+                disabled={form.is_field}
+                onChange={e=>setForm({...form,distance:+e.target.value})}/>
+            </div>
+
             <div><label className="label">Gender</label>
               <select className="input" value={form.gender} onChange={e=>setForm({...form,gender:e.target.value})}>
                 {GENDERS.map(g=><option key={g}>{g}</option>)}
               </select>
             </div>
-            <div className="flex items-center gap-2 mt-6">
-              <input type="checkbox" id="is_relay" checked={form.is_relay} onChange={e=>setForm({...form,is_relay:e.target.checked})}/>
-              <label htmlFor="is_relay" className="text-sm font-medium text-slate-700">Relay Event (4×)</label>
+
+            {/* Auto-detected flags */}
+            <div className="flex items-center gap-4 mt-6 col-span-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <input type="checkbox" checked={form.is_relay} readOnly className="pointer-events-none opacity-60"/>
+                Relay Event (auto-detected from {getSportConfig(meet.sport_type).disciplineLabel})
+              </label>
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <input type="checkbox" checked={form.is_field} readOnly className="pointer-events-none opacity-60"/>
+                Field Event (mark-based)
+              </label>
             </div>
+
             <div className="col-span-3 flex gap-2 justify-end">
               <button type="button" onClick={()=>setShow(false)} className="btn-secondary">Cancel</button>
               <button type="submit" className="btn-primary">Add Event</button>
@@ -111,7 +170,9 @@ export default function MeetDetailPage() {
               <div>
                 <span className="text-xs text-slate-400 mr-2">#{ev.event_number}</span>
                 <span className="font-medium">{ev.name}</span>
-                <span className="text-slate-400 text-sm ml-2">· {ev.total_distance}m · {ev.gender}</span>
+                <span className="text-slate-400 text-sm ml-2">
+                  · {ev.is_field ? 'Field' : `${ev.total_distance}m`} · {ev.gender} · {disciplineName(ev.discipline, meet.sport_type)}
+                </span>
               </div>
               <span className={STATUS_BADGE[ev.status]}>{ev.status}</span>
             </Link>

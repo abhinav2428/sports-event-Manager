@@ -33,7 +33,7 @@ export const teamsApi = {
   list:      () => api.get('/teams'),
   create:    (d: object) => api.post('/teams', d),
   get:       (id: string) => api.get(`/teams/${id}`),
-  addMember: (teamId: string, swimmerId: string, role = 'member') =>
+  addMember: (teamId: string, swimmerId: string, role = 'swimmer') =>
     api.post(`/teams/${teamId}/members`, { swimmer_id: swimmerId, role }),
 }
 

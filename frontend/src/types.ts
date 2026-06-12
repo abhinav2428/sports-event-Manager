@@ -1,19 +1,39 @@
+/**
+ * Frontend type definitions — sport-agnostic.
+ *
+ * Key renames from swim-specific to sport-agnostic:
+ *   Stroke      → Discipline
+ *   CourseType  → VenueConfig (string)
+ *   SwimEvent   → SportEvent  (alias kept)
+ *   pool_lanes  → lanes
+ *
+ * All sport-specific string literals are no longer hard-coded here;
+ * they live in sportConfig.ts instead.
+ */
+
 export type UserType    = 'administrator' | 'recorder'
 export type Gender      = 'M' | 'F'
-export type CourseType  = 'SCY' | 'SCM' | 'LCM'
+export type VenueConfig = string           // was CourseType: 'SCY'|'SCM'|'LCM'
 export type MeetStatus  = 'draft' | 'active' | 'completed'
-export type Stroke      = 'freestyle'|'backstroke'|'breaststroke'|'butterfly'|'individual_medley'|'relay_freestyle'|'relay_medley'
+
+// Discipline: was Stroke. Actual values come from SPORT.disciplines in sportConfig.ts
+export type Discipline  = string
+
 export type EventGender = 'M' | 'F' | 'mixed'
 export type EventStatus = 'upcoming' | 'seeded' | 'ongoing' | 'completed'
 export type HeatStatus  = 'pending' | 'active' | 'completed'
 export type ResultStatus = 'DRAFT' | 'SAVED' | 'FINALIZED'
-export type AwardType   = 'gold'|'silver'|'bronze'|'best_swimmer'|'most_improved'|'special'
+export type AwardType   = 'gold'|'silver'|'bronze'|'best_athlete'|'most_improved'|'special'
 
-export interface Swimmer {
+/** Participant in any sport meet (was Swimmer) */
+export interface Participant {
   id: string; name: string; roll_number: string
   college: string; gender: Gender
   email?: string; year_of_study?: number
 }
+
+/** Backward-compat alias */
+export type Swimmer = Participant
 
 export interface Team {
   id: string; name: string; college: string; gender?: Gender
@@ -22,15 +42,26 @@ export interface Team {
 export interface Meet {
   id: string; name: string; venue?: string
   start_date: string; end_date: string
-  course: CourseType; pool_lanes: string; status: MeetStatus
+  sport_type: string
+  venue_config: string              // was course: CourseType
+  lanes: string
+  status: MeetStatus
 }
 
-export interface SwimEvent {
+/** Sport-agnostic event (was SwimEvent) */
+export interface SportEvent {
   id: string; meet_id: string; event_number: number
-  name: string; stroke: Stroke; distance: number
-  gender: EventGender; is_relay: boolean; relay_legs: number
+  name: string
+  discipline: string               // was stroke: Stroke
+  distance: number
+  gender: EventGender; is_relay: boolean
+  is_field: boolean                // true for jumps/throws (field events)
+  relay_legs: number
   status: EventStatus; total_distance: number
 }
+
+/** Backward-compat alias */
+export type SwimEvent = SportEvent
 
 export interface Heat {
   id: string; event_id: string; heat_number: number
@@ -60,6 +91,7 @@ export interface TimeResult {
   individual_entry_id?: string; relay_entry_id?: string
   final_time_ms?: number; time_display: string
   splits_ms?: Record<string, number>
+  attempt_marks?: number[]           // field events: up to 6 attempts in cm
   dns: boolean; dnf: boolean; dq: boolean
   dq_code?: string; dq_description?: string
   rank?: number; status: ResultStatus

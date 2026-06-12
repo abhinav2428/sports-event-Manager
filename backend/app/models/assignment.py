@@ -14,12 +14,12 @@ class EventAssignment(Base):
     __tablename__ = "event_assignments"
 
     id          = Column(String, primary_key=True)
-    event_id    = Column(String, ForeignKey("swim_events.id"), nullable=False)
+    event_id    = Column(String, ForeignKey("sport_events.id"), nullable=False)
     recorder_id = Column(String, ForeignKey("users.id"), nullable=False)
     admin_id    = Column(String, ForeignKey("users.id"), nullable=False)
     assigned_at = Column(DateTime, default=datetime.utcnow)
 
-    event    = relationship("SwimEvent", back_populates="assignments")
+    event    = relationship("SportEvent", back_populates="assignments")
     recorder = relationship("User", foreign_keys=[recorder_id])
     admin    = relationship("User", foreign_keys=[admin_id])
 
@@ -45,4 +45,4 @@ class Award(Base):
     title      = Column(String(200), nullable=False)
     description= Column(String(500))
 
-    swimmer = relationship("Swimmer")
+    swimmer = relationship("Athlete")

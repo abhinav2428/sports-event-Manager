@@ -1,7 +1,7 @@
 // ─── LoginPage ────────────────────────────────────────────────
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Waves } from 'lucide-react'
+import { Trophy } from 'lucide-react'
 import { authApi } from './api'
 import { useAuth } from './authStore'
 
@@ -24,13 +24,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-pool-800 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-slate-800 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/10 mb-4">
-            <Waves size={28} className="text-blue-300" />
+            <Trophy size={28} className="text-blue-300" />
           </div>
-          <h1 className="text-2xl font-bold text-white">SwimMeet</h1>
+          <h1 className="text-2xl font-bold text-white">Sports Event Manager</h1>
           <p className="text-white/50 text-sm mt-1">Competition Management</p>
         </div>
         <div className="bg-white rounded-2xl p-7 shadow-2xl">

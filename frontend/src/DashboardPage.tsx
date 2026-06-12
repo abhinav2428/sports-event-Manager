@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, Users, ArrowRight, Waves } from 'lucide-react'
+import { Calendar, Users, ArrowRight, Trophy } from 'lucide-react'
 import { meetsApi, swimmersApi } from './api'
 import { useAuth } from './authStore'
 import type { Meet } from './types'
@@ -12,11 +12,11 @@ const STATUS_BADGE: Record<string, string> = {
 export default function DashboardPage() {
   const { user } = useAuth()
   const [meets, setMeets] = useState<Meet[]>([])
-  const [swimmerCount, setSwimmerCount] = useState(0)
+  const [athleteCount, setAthleteCount] = useState(0)
 
   useEffect(() => {
     meetsApi.list().then(r => setMeets(r.data)).catch(() => {})
-    swimmersApi.list().then(r => setSwimmerCount(r.data.length)).catch(() => {})
+    swimmersApi.list().then(r => setAthleteCount(r.data.length)).catch(() => {})
   }, [])
 
   return (
@@ -25,7 +25,7 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold">Welcome, {user?.name?.split(' ')[0]} 👋</h1>
         <p className="text-slate-500 text-sm mt-1">
           {user?.user_type === 'administrator'
-            ? 'Manage meets, events, swimmers, and results'
+          ? `Manage meets, events, participants, and results`
             : 'View assigned events and record results'}
         </p>
       </div>
@@ -33,8 +33,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-3 gap-4 mb-8">
         {[
           { label: 'Total Meets', value: meets.length, icon: Calendar, color: 'text-blue-600 bg-blue-50' },
-          { label: 'Registered Swimmers', value: swimmerCount, icon: Users, color: 'text-violet-600 bg-violet-50' },
-          { label: 'Active Meets', value: meets.filter(m => m.status === 'active').length, icon: Waves, color: 'text-pool-600 bg-pool-50' },
+          { label: `Registered Participants`, value: athleteCount, icon: Users, color: 'text-violet-600 bg-violet-50' },
+          { label: 'Active Meets', value: meets.filter(m => m.status === 'active').length, icon: Trophy, color: 'text-amber-600 bg-amber-50' },
         ].map(s => (
           <div key={s.label} className="card p-5">
             <div className={`inline-flex p-2.5 rounded-lg ${s.color} mb-3`}><s.icon size={20} /></div>
@@ -58,7 +58,7 @@ export default function DashboardPage() {
               className="flex items-center justify-between px-5 py-3.5 border-b border-slate-50 hover:bg-slate-50 last:border-0">
               <div>
                 <div className="text-sm font-medium">{m.name}</div>
-                <div className="text-xs text-slate-400">{m.venue || 'No venue'} · {m.start_date} · {m.course}</div>
+                <div className="text-xs text-slate-400">{m.venue || 'No venue'} · {m.start_date} · {m.venue_config}</div>
               </div>
               <span className={STATUS_BADGE[m.status]}>{m.status}</span>
             </Link>

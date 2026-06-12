@@ -8,12 +8,14 @@
 
 @layer components {
   .btn        { @apply px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
-  .btn-primary   { @apply btn bg-pool-800 text-white hover:bg-pool-900; }
+  /* Primary button uses track-800 (amber/orange) for T&F; was pool-800 (blue) for swimming */
+  .btn-primary   { @apply btn bg-track-800 text-white hover:bg-track-900; }
   .btn-secondary { @apply btn bg-white text-slate-700 border border-slate-200 hover:bg-slate-50; }
   .btn-danger    { @apply btn bg-red-600 text-white hover:bg-red-700; }
   .btn-ghost     { @apply btn text-slate-600 hover:bg-slate-100; }
   .card       { @apply bg-white rounded-xl border border-slate-200 shadow-sm; }
-  .input      { @apply w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pool-600 focus:border-transparent; }
+  /* Focus ring uses track-600 for T&F; was pool-600 for swimming */
+  .input      { @apply w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-track-600 focus:border-transparent; }
   .label      { @apply block text-sm font-medium text-slate-700 mb-1; }
   .page-title { @apply text-2xl font-bold text-slate-900 mb-6; }
   .badge-draft    { @apply inline-flex px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800; }

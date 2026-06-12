@@ -5,6 +5,7 @@ import { Plus, Calendar } from 'lucide-react'
 import { meetsApi } from './api'
 import { useAuth } from './authStore'
 import type { Meet } from './types'
+import { getSportConfig } from './sportConfig'
 
 const STATUS_BADGE: Record<string, string> = {
   draft: 'badge-upcoming', active: 'badge-ongoing', completed: 'badge-done',
@@ -13,7 +14,7 @@ const STATUS_BADGE: Record<string, string> = {
 export default function MeetsPage() {
   const [meets, setMeets]   = useState<Meet[]>([])
   const [show, setShow]     = useState(false)
-  const [form, setForm]     = useState({ name:'', venue:'', start_date:'', end_date:'', course:'SCM', pool_lanes:'8' })
+  const [form, setForm] = useState({ name:'', venue:'', start_date:'', end_date:'', sport_type: 'swimming', venue_config: 'SCM', pool_lanes:'8' })
   const [saving, setSaving] = useState(false)
   const { isAdmin } = useAuth()
 
@@ -27,7 +28,8 @@ export default function MeetsPage() {
       venue: form.venue,
       start_date: form.start_date,
       end_date: form.end_date || null,
-      pool_length: form.course === 'LCM' ? 50 : 25,
+      sport_type: form.sport_type,
+      venue_config: form.venue_config,
       lanes: parseInt(form.pool_lanes, 10)
     }
     await meetsApi.create(payload).finally(() => setSaving(false))
@@ -49,14 +51,24 @@ export default function MeetsPage() {
             <div className="col-span-2"><label className="label">Venue</label><input className="input" value={form.venue} onChange={e=>setForm({...form,venue:e.target.value})}/></div>
             <div><label className="label">Start Date</label><input className="input" type="date" required value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/></div>
             <div><label className="label">End Date</label><input className="input" type="date" required value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})}/></div>
-            <div><label className="label">Course</label>
-              <select className="input" value={form.course} onChange={e=>setForm({...form,course:e.target.value})}>
-                <option value="SCM">SCM — Short Course Metres (25m)</option>
-                <option value="SCY">SCY — Short Course Yards (25yd)</option>
-                <option value="LCM">LCM — Long Course Metres (50m)</option>
+            <div><label className="label">Sport Type</label>
+              <select className="input" value={form.sport_type} onChange={e=> {
+                const sport = e.target.value
+                const conf = getSportConfig(sport)
+                setForm({...form, sport_type: sport, venue_config: conf.defaultVenueConfig, pool_lanes: String(conf.lanesDefault)})
+              }}>
+                <option value="swimming">Swimming</option>
+                <option value="track_field">Track & Field</option>
               </select>
             </div>
-            <div><label className="label">Pool Lanes</label>
+            <div><label className="label">{getSportConfig(form.sport_type).venueConfigLabel}</label>
+              <select className="input" value={form.venue_config} onChange={e=>setForm({...form,venue_config:e.target.value})}>
+                {getSportConfig(form.sport_type).venueConfigs.map(vc => (
+                  <option key={vc} value={vc}>{vc}</option>
+                ))}
+              </select>
+            </div>
+            <div><label className="label">{getSportConfig(form.sport_type).laneLabel}s</label>
               <select className="input" value={form.pool_lanes} onChange={e=>setForm({...form,pool_lanes:e.target.value})}>
                 <option value="6">6 lanes</option><option value="8">8 lanes</option><option value="10">10 lanes</option>
               </select>
@@ -77,7 +89,7 @@ export default function MeetsPage() {
               className="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors">
               <div>
                 <div className="font-medium">{m.name}</div>
-                <div className="text-sm text-slate-400">{m.venue||'No venue'} · {m.start_date} → {m.end_date} · {m.course}</div>
+                <div className="text-sm text-slate-400">{m.venue||'No venue'} · {m.start_date} → {m.end_date} · {m.sport_type === 'swimming' ? 'Swim Meet' : 'Track Meet'} · {m.venue_config}</div>
               </div>
               <span className={STATUS_BADGE[m.status]}>{m.status}</span>
             </Link>

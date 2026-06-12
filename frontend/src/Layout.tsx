@@ -1,13 +1,13 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from './authStore'
-import { Waves, Users, UsersRound, Calendar, LayoutDashboard, LogOut, ClipboardList } from 'lucide-react'
+import { Users, UsersRound, Calendar, LayoutDashboard, LogOut, ClipboardList, Trophy } from 'lucide-react'
 
 const nav = [
-  { to: '/',        icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/meets',   icon: Calendar,        label: 'Meets' },
-  { to: '/swimmers',icon: Users,           label: 'Swimmers' },
-  { to: '/teams',   icon: UsersRound,      label: 'Teams' },
-  { to: '/recorder',icon: ClipboardList,   label: 'Record Results', recorderOnly: true },
+  { to: '/',         icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/meets',    icon: Calendar,        label: 'Meets' },
+  { to: '/athletes', icon: Users,           label: 'Participants' },
+  { to: '/teams',    icon: UsersRound,      label: 'Teams' },
+  { to: '/recorder', icon: ClipboardList,   label: 'Record Results', recorderOnly: true },
 ]
 
 export default function Layout() {
@@ -18,10 +18,10 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className="w-56 bg-pool-800 text-white flex flex-col shrink-0">
+      <aside className="w-56 bg-slate-800 text-white flex flex-col shrink-0">
         <div className="flex items-center gap-2 px-5 py-5 border-b border-white/10">
-          <Waves size={22} className="text-blue-300" />
-          <span className="font-bold tracking-tight">SwimMeet</span>
+          <Trophy size={22} className="text-blue-500" />
+          <span className="font-bold tracking-tight">Sports Event Manager</span>
         </div>
         <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
           {nav

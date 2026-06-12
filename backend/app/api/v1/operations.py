@@ -7,10 +7,10 @@ from typing import List
 
 from app.core.database import get_db
 from app.api.deps import require_admin, require_recorder_or_admin, get_current_user
-from app.models.event import SwimEvent
+from app.models.event import SportEvent
 from app.models.heat import Heat
 from app.models.entry import IndividualEntry, RelayEntry, RelayLeg
-from app.models.result import TimeResult, ResultStatus, DQ_CODES
+from app.models.result import TimeResult, ResultStatus
 from app.models.assignment import EventAssignment, PDFReport, Award
 from app.models.user import User, UserType
 from app.schemas.schemas import (
@@ -23,6 +23,7 @@ from app.services import seeding as seeding_svc
 from app.services import result_service
 from app.services import pdf_service
 from app.services.seeding import format_ms
+from app.core.sport_config import get_sport_config, is_field_discipline
 
 # ── Routers ────────────────────────────────────────────────────
 entries_router     = APIRouter(prefix="/events",      tags=["Entries"])
@@ -38,7 +39,7 @@ reports_router     = APIRouter(prefix="/meets",       tags=["Reports"])
 @entries_router.post("/{event_id}/individual-entries", response_model=IndividualEntryOut)
 def add_individual_entry(event_id: str, data: IndividualEntryCreate,
                           db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    ev = db.get(SwimEvent, event_id)
+    ev = db.get(SportEvent, event_id)
     if not ev or ev.is_relay:
         raise HTTPException(400, "Individual event required")
     existing = db.query(IndividualEntry).filter_by(
@@ -78,7 +79,7 @@ def _ind_entry_out(e: IndividualEntry) -> IndividualEntryOut:
 @entries_router.post("/{event_id}/relay-entries", response_model=RelayEntryOut)
 def add_relay_entry(event_id: str, data: RelayEntryCreate,
                     db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    ev = db.get(SwimEvent, event_id)
+    ev = db.get(SportEvent, event_id)
     if not ev or not ev.is_relay:
         raise HTTPException(400, "Relay event required")
     existing = db.query(RelayEntry).filter_by(
@@ -137,7 +138,7 @@ def _relay_entry_out(e: RelayEntry) -> RelayEntryOut:
 def seed_event(event_id: str, pool_lanes: int = 8,
                db: Session = Depends(get_db), _: User = Depends(require_admin)):
     """Run the center-out seeding algorithm for the event."""
-    ev = db.get(SwimEvent, event_id)
+    ev = db.get(SportEvent, event_id)
     if not ev: raise HTTPException(404, "Event not found")
     heats = seeding_svc.seed_event(db, ev, pool_lanes)
     return heats
@@ -176,24 +177,20 @@ def record_result(data: ResultCreate, db: Session = Depends(get_db),
         result = result_service.create_result(db, data, current_user.id)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return _result_out(result)
+    return _format_result(result)
 
 
 @results_router.get("/event/{event_id}", response_model=List[ResultOut])
-def get_event_results(event_id: str, db: Session = Depends(get_db),
-                      _: User = Depends(get_current_user)):
-    """All results for an event (all statuses)."""
-    results = []
+def get_results_for_event(event_id: str, db: Session = Depends(get_db)):
+    # Get the event first to determine the sport_type
+    event = db.query(SportEvent).filter(SportEvent.id == event_id).first()
+    sport_type = event.meet.sport_type if event and event.meet else "swimming"
 
-    ind = db.query(IndividualEntry).filter(IndividualEntry.event_id == event_id).all()
-    for e in ind:
-        if e.result: results.append(_result_out(e.result))
-
-    rel = db.query(RelayEntry).filter(RelayEntry.event_id == event_id).all()
-    for e in rel:
-        if e.result: results.append(_result_out(e.result))
-
-    return sorted(results, key=lambda r: (r.rank or 999, r.final_time_ms or 999999))
+    results = db.query(TimeResult).join(IndividualEntry, TimeResult.individual_entry_id == IndividualEntry.id, isouter=True)\
+        .join(RelayEntry, TimeResult.relay_entry_id == RelayEntry.id, isouter=True)\
+        .filter((IndividualEntry.event_id == event_id) | (RelayEntry.event_id == event_id)).all()
+    
+    return [_format_result(r, sport_type) for r in results]
 
 
 @results_router.patch("/{result_id}/edit", response_model=ResultOut)
@@ -217,7 +214,7 @@ def edit_result(result_id: str, data: ResultUpdate,
         result = result_service.edit_result(db, result, data, current_user.id)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return _result_out(result)
+    return _format_result(result)
 
 
 @results_router.patch("/{result_id}/save", response_model=ResultOut)
@@ -239,7 +236,7 @@ def save_result(result_id: str, db: Session = Depends(get_db),
         result = result_service.save_result(db, result)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return _result_out(result)
+    return _format_result(result)
 
 
 @results_router.patch("/{result_id}/finalize", response_model=ResultOut)
@@ -249,12 +246,12 @@ def finalize_result(result_id: str, db: Session = Depends(get_db),
     result = db.get(TimeResult, result_id)
     if not result: raise HTTPException(404, "Result not found")
     result = result_service.finalize_result(db, result, current_user.id)
-    return _result_out(result)
+    return _format_result(result)
 
 
 @results_router.get("/dq-codes")
-def get_dq_codes():
-    return DQ_CODES
+def get_dq_codes(sport_type: str = "swimming"):
+    return get_sport_config(sport_type).get("dq_codes", {})
 
 
 @results_router.get("/{result_id}/certificate-data")
@@ -269,7 +266,7 @@ def get_certificate_data(result_id: str, db: Session = Depends(get_db),
 
     # Gather event and meet
     event_id = _event_id_for_result(db, result)
-    event = db.get(SwimEvent, event_id) if event_id else None
+    event = db.get(SportEvent, event_id) if event_id else None
     meet = event.meet if event and hasattr(event, "meet") else None
 
     # ── Compute live rank among all finalized results in this event ──
@@ -313,21 +310,27 @@ def get_certificate_data(result_id: str, db: Session = Depends(get_db),
     else:
         position = "—"
 
+    sport_config = get_sport_config(meet.sport_type if meet else "swimming")
+
     return {
         "participant_name": result.participant_name,
-        "event_name": event.name if event else "Swimming Event",
-        "meet_name": meet.name if meet else "Sports Meet",
+        "event_name": event.name if event else f"{sport_config['sport_name']} Event",
+        "meet_name": meet.name if meet else f"{sport_config['meet_type_label']}",
         "meet_venue": meet.venue if meet and meet.venue else None,
         "position": position,
         "rank": live_rank,
-        "time_display": result.format_time(),
+        "time_display": result.format_perf(sport_type=meet.sport_type if meet else "swimming"),
         "finalized_at": result.finalized_at.isoformat() if result.finalized_at else None,
         "is_relay": event.is_relay if event else False,
+        "is_field": event.is_field if event else False,
+        "discipline": event.discipline if event else None,
+        "sport_name": sport_config["sport_name"],
     }
 
 
-def _result_out(r: TimeResult) -> ResultOut:
-    heat_number, lane = None, None
+def _format_result(r: TimeResult, sport_type: str = "swimming") -> ResultOut:
+    heat_number = None
+    lane = None
     if r.individual_entry:
         heat_number = r.individual_entry.heat.heat_number if r.individual_entry.heat else None
         lane = r.individual_entry.lane
@@ -340,8 +343,9 @@ def _result_out(r: TimeResult) -> ResultOut:
         individual_entry_id=r.individual_entry_id,
         relay_entry_id=r.relay_entry_id,
         final_time_ms=r.final_time_ms,
-        time_display=r.format_time(),
+        time_display=r.format_perf(sport_type),
         splits_ms=r.splits_ms,
+        attempt_marks=r.attempt_marks,
         dns=r.dns, dnf=r.dnf, dq=r.dq,
         dq_code=r.dq_code, dq_description=r.dq_description,
         rank=r.rank, status=r.status,

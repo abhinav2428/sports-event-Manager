@@ -1,5 +1,7 @@
 """
 All Pydantic v2 schemas — used by all routers.
+Sport-agnostic: 'stroke' renamed to 'discipline', 'pool_length' to 'venue_config'.
+All sport-specific field names sourced from SPORT config labels.
 Includes fields that operations.py expects (seed_time_ms, withdrawn, etc.)
 """
 from __future__ import annotations
@@ -42,7 +44,8 @@ class UserOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ── Swimmer ────────────────────────────────────────────────────
+# ── Participant (Swimmer / Athlete) ────────────────────────────
+# Class named with Swimmer* prefix for backward compat; field names are generic.
 
 class SwimmerCreate(BaseModel):
     name: str
@@ -52,6 +55,9 @@ class SwimmerCreate(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     college: Optional[str] = None
+
+# Sport-agnostic alias
+ParticipantCreate = SwimmerCreate
 
 
 class SwimmerOut(BaseModel):
@@ -65,20 +71,22 @@ class SwimmerOut(BaseModel):
     college: Optional[str] = None
     model_config = {"from_attributes": True}
 
+ParticipantOut = SwimmerOut
+
 
 # ── Team ───────────────────────────────────────────────────────
 
 class TeamCreate(BaseModel):
     name: str
     college: Optional[str] = None
-    gender: str
+    gender: Optional[str] = None
 
 
 class TeamOut(BaseModel):
     id: str
     name: str
     college: Optional[str] = None
-    gender: str
+    gender: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -88,7 +96,7 @@ class TeamDetailOut(TeamOut):
 
 class AddMemberRequest(BaseModel):
     swimmer_id: str
-    role: str = "swimmer"
+    role: str = "member"
 
 
 # ── Meet ───────────────────────────────────────────────────────
@@ -99,7 +107,8 @@ class MeetCreate(BaseModel):
     city: Optional[str] = None
     start_date: date
     end_date: Optional[date] = None
-    pool_length: int = 25
+    sport_type: str                      # 'swimming' or 'track_field'
+    venue_config: Optional[str] = None   # was pool_length / course
     lanes: int = 8
 
 
@@ -110,7 +119,8 @@ class MeetOut(BaseModel):
     city: Optional[str] = None
     start_date: date
     end_date: Optional[date] = None
-    pool_length: int
+    sport_type: str
+    venue_config: Optional[str] = None   # was pool_length / course
     lanes: int
     status: str
     administrator_id: str
@@ -122,10 +132,11 @@ class MeetOut(BaseModel):
 class EventCreate(BaseModel):
     event_number: int
     name: str
-    stroke: str
-    distance: int
+    discipline: str          # was 'stroke'
+    distance: int            # metres; 0 for field events
     gender: str
     is_relay: bool = False
+    is_field: bool = False   # True for jumps/throws
     relay_legs: int = 1
 
 
@@ -134,10 +145,11 @@ class EventOut(BaseModel):
     meet_id: str
     event_number: int
     name: str
-    stroke: str
+    discipline: str          # was 'stroke'
     distance: int
     gender: str
     is_relay: bool
+    is_field: bool = False
     relay_legs: int
     status: str
     total_distance: Optional[int] = None
@@ -148,7 +160,7 @@ class EventOut(BaseModel):
 
 class IndividualEntryCreate(BaseModel):
     swimmer_id: str
-    seed_time_ms: Optional[int] = None   # milliseconds
+    seed_time_ms: Optional[int] = None   # milliseconds (or seed mark in cm for field)
 
 
 class IndividualEntryOut(BaseModel):
@@ -210,6 +222,7 @@ class ResultCreate(BaseModel):
     relay_entry_id: Optional[str] = None
     final_time_ms: Optional[int] = None
     splits_ms: Optional[List[int]] = None
+    attempt_marks: Optional[List[int]] = None  # field events: up to 6 attempts in cm
     dns: bool = False
     dnf: bool = False
     dq: bool = False
@@ -221,6 +234,7 @@ class ResultCreate(BaseModel):
 class ResultUpdate(BaseModel):
     final_time_ms: Optional[int] = None
     splits_ms: Optional[List[int]] = None
+    attempt_marks: Optional[List[int]] = None  # field events
     dns: Optional[bool] = None
     dnf: Optional[bool] = None
     dq: Optional[bool] = None
@@ -234,8 +248,9 @@ class ResultOut(BaseModel):
     individual_entry_id: Optional[str] = None
     relay_entry_id: Optional[str] = None
     final_time_ms: Optional[int] = None
-    time_display: Optional[str] = None
+    time_display: Optional[str] = None           # formatted time OR best mark
     splits_ms: Optional[List[int]] = None
+    attempt_marks: Optional[List[int]] = None    # field events
     dns: bool = False
     dnf: bool = False
     dq: bool = False
@@ -274,7 +289,7 @@ class AssignmentOut(BaseModel):
 # ── Awards ─────────────────────────────────────────────────────
 
 class AwardCreate(BaseModel):
-    swimmer_id: Optional[str] = None
+    swimmer_id: Optional[str] = None    # participant_id; kept as swimmer_id for DB compat
     title: str
     description: Optional[str] = None
 

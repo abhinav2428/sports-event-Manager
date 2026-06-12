@@ -6,7 +6,7 @@
   body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #111; }
   h1   { font-size: 18px; text-align: center; margin-bottom: 4px; }
   h2   { font-size: 13px; text-align: center; color: #555; margin-top: 0; }
-  h3   { font-size: 12px; margin: 14px 0 4px; background: #1a3c5e; color: #fff;
+  h3   { font-size: 12px; margin: 14px 0 4px; background: {{ pdf_header_color|default('#1a3c5e') }}; color: #fff;
          padding: 4px 8px; border-radius: 3px; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
   th   { background: #dce9f5; text-align: center; padding: 3px 6px; border: 1px solid #aaa; }
@@ -21,7 +21,7 @@
 </head>
 <body>
   <h1>{{ meet.name }}</h1>
-  <h2>Official Results — {{ meet.venue }}{% if meet.city %}, {{ meet.city }}{% endif %}</h2>
+  <h2>{{ sport_name }} — Official Results — {{ meet.venue }}{% if meet.city %}, {{ meet.city }}{% endif %}</h2>
   <p style="text-align:center; color:#555; font-size:10px;">
     {{ meet.start_date }}{% if meet.end_date %} – {{ meet.end_date }}{% endif %}
   </p>
@@ -29,7 +29,7 @@
   {% for event in events %}
   <h3>Event {{ event.event_number }}: {{ event.name }}</h3>
   <table>
-    <tr><th>Place</th><th>Name / Team</th><th>Official Time</th><th>Status</th></tr>
+    <tr><th>Place</th><th>{{ participant_label }} / Team</th><th>Official Performance</th><th>Status</th></tr>
     {% for r in event.results %}
     <tr class="{% if r.rank == 1 %}gold{% elif r.rank == 2 %}silver{% elif r.rank == 3 %}bronze{% endif %}
                {% if r.dq or r.dns or r.dnf %}dq{% endif %}">
@@ -46,6 +46,6 @@
   </table>
   {% endfor %}
 
-  <div class="footer">Generated: {{ generated_at }}</div>
+  <div class="footer">Generated: {{ generated_at }} | {{ sport_name }} Competition Management System</div>
 </body>
 </html>

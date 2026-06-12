@@ -1,26 +1,25 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Plus, Shuffle, CheckCircle, Save, Edit2, UserPlus, Trash2, Award } from 'lucide-react'
-import { eventsApi, entriesApi, swimmersApi, teamsApi, heatApi, resultsApi, assignmentsApi, authApi } from './api'
+import { meetsApi, eventsApi, entriesApi, swimmersApi, teamsApi, heatApi, resultsApi, assignmentsApi, authApi } from './api'
 import { useAuth } from './authStore'
-import type { SwimEvent, IndividualEntry, RelayEntry, TimeResult, Swimmer, Team, Assignment } from './types'
+import type { SportEvent, IndividualEntry, RelayEntry, TimeResult, Participant, Team, Assignment } from './types'
+import { getSportConfig, disciplineName, isFieldDiscipline, formatPerformance } from './sportConfig'
 
 const STATUS_BADGE: Record<string,string> = {
   DRAFT:'badge-draft', SAVED:'badge-saved', FINALIZED:'badge-final',
 }
 
-const DQ_CODES = [
-  'SW 4.4','SW 5.3','SW 6.5','SW 7.1','SW 8.2','SW 9.3','SW 10.2','SW 11.3',
-]
 
 export default function EventDetailPage() {
   const { meetId, eventId } = useParams<{meetId:string;eventId:string}>()
   const { isAdmin, user } = useAuth()
-  const [event, setEvent]       = useState<SwimEvent|null>(null)
+  const [meet, setMeet]         = useState<Meet|null>(null)
+  const [event, setEvent]       = useState<SportEvent|null>(null)
   const [indEntries, setInd]    = useState<IndividualEntry[]>([])
   const [relEntries, setRel]    = useState<RelayEntry[]>([])
   const [results, setResults]   = useState<TimeResult[]>([])
-  const [swimmers, setSwimmers] = useState<Swimmer[]>([])
+  const [swimmers, setSwimmers] = useState<Participant[]>([])
   const [teams, setTeams]       = useState<Team[]>([])
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [recorders, setRecorders]     = useState<{id:string;name:string}[]>([])
@@ -28,12 +27,13 @@ export default function EventDetailPage() {
   const [showEntry, setShowEntry]     = useState(false)
   const [entryForm, setEntryForm]     = useState({swimmer_id:'', team_id:'', seed_time_ms:''})
   const [editingResult, setEditingResult] = useState<TimeResult|null>(null)
-  const [editForm, setEditForm] = useState({final_time_ms:'', dq:false, dq_code:'', dns:false, dnf:false, notes:''})
+  const [editForm, setEditForm] = useState({final_time_ms:'', attempt_marks:'', dq:false, dq_code:'', dns:false, dnf:false, notes:''})
   const [selectedRecorder, setSelectedRecorder] = useState('')
   const [assigning, setAssigning] = useState(false)
 
   const load = () => {
     eventsApi.get(meetId!, eventId!).then(r => setEvent(r.data))
+    meetsApi.get(meetId!).then(r => setMeet(r.data)).catch(()=>{})
     entriesApi.listIndividual(eventId!).then(r => setInd(r.data)).catch(()=>{})
     entriesApi.listRelay(eventId!).then(r => setRel(r.data)).catch(()=>{})
     resultsApi.forEvent(eventId!).then(r => setResults(r.data)).catch(()=>{})
@@ -66,8 +66,14 @@ export default function EventDetailPage() {
 
   const openEdit = (r: TimeResult) => {
     setEditingResult(r)
+    let bestMark = ''
+    if (r.attempt_marks && r.attempt_marks.length > 0) {
+      const best = Math.max(...r.attempt_marks.filter(m => m > 0))
+      if (best > 0) bestMark = (best / 100).toFixed(2)
+    }
     setEditForm({
       final_time_ms: r.final_time_ms ? (r.final_time_ms / 1000).toString() : '',
+      attempt_marks: bestMark,
       dq: r.dq, dq_code: r.dq_code||'',
       dns: r.dns, dnf: r.dnf, notes: r.notes||'',
     })
@@ -75,9 +81,22 @@ export default function EventDetailPage() {
 
   const saveEdit = async () => {
     if (!editingResult) return
+    const isField = event && meet ? isFieldDiscipline(event.discipline, meet.sport_type) : false
+    
+    let timeMs = null
+    let marks = null
+    if (!editForm.dns && !editForm.dnf && !editForm.dq) {
+      if (isField) {
+        const m = parseFloat(editForm.attempt_marks)
+        marks = !isNaN(m) && m > 0 ? [Math.round(m * 100)] : null
+      } else {
+        timeMs = editForm.final_time_ms ? Math.round(parseFloat(editForm.final_time_ms) * 1000) : null
+      }
+    }
+
     await resultsApi.edit(editingResult.id, {
-      final_time_ms: (!editForm.dns && !editForm.dnf && !editForm.dq && editForm.final_time_ms)
-        ? Math.round(parseFloat(editForm.final_time_ms) * 1000) : null,
+      final_time_ms: timeMs,
+      attempt_marks: marks,
       dq: editForm.dq, dq_code: editForm.dq_code||null,
       dns: editForm.dns, dnf: editForm.dnf, notes: editForm.notes||null,
     })
@@ -99,7 +118,10 @@ export default function EventDetailPage() {
     load()
   }
 
-  if (!event) return <div className="text-slate-400 text-sm">Loading…</div>
+  if (!event || !meet) return <div className="text-slate-400 text-sm">Loading…</div>
+
+  const sportConfig = getSportConfig(meet.sport_type)
+  const dqCodesList = Object.keys(sportConfig.dqCodes)
 
   const allEntries = event.is_relay ? relEntries : indEntries
   const assignedIds = new Set(assignments.map(a => a.recorder_id))
@@ -122,7 +144,10 @@ export default function EventDetailPage() {
         <div>
           <h1 className="text-2xl font-bold">Event {event.event_number} — {event.name}</h1>
           <p className="text-slate-500 text-sm mt-1">
-            {event.total_distance}m · {event.gender} · {event.stroke.replace(/_/g,' ')} · <span className="font-medium capitalize">{event.status}</span>
+            {event.is_field
+              ? `Field Event · ${disciplineName(event.discipline, meet.sport_type)} · ${event.gender}`
+              : `${event.total_distance}m · ${event.gender} · ${disciplineName(event.discipline, meet.sport_type)} · `}
+            <span className="font-medium capitalize">{event.status}</span>
           </p>
         </div>
         {isAdmin() && (
@@ -155,7 +180,7 @@ export default function EventDetailPage() {
         <>
           {showEntry && isAdmin() && (
             <div className="card p-5 mb-4">
-              <h3 className="font-semibold mb-3">Add {event.is_relay ? 'Relay Team' : 'Swimmer'}</h3>
+              <h3 className="font-semibold mb-3">Add {event.is_relay ? 'Relay Team' : sportConfig.participantLabel}</h3>
               <form onSubmit={addEntry} className="flex gap-3 items-end">
                 {event.is_relay
                   ? <div className="flex-1"><label className="label">Team</label>
@@ -163,13 +188,13 @@ export default function EventDetailPage() {
                         <option value="">— select team —</option>
                         {teams.map(t=><option key={t.id} value={t.id}>{t.name} ({t.college})</option>)}
                       </select></div>
-                  : <div className="flex-1"><label className="label">Swimmer</label>
+                  : <div className="flex-1"><label className="label">{sportConfig.participantLabel}</label>
                       <select className="input" required value={entryForm.swimmer_id} onChange={e=>setEntryForm({...entryForm,swimmer_id:e.target.value})}>
-                        <option value="">— select swimmer —</option>
+                        <option value="">— select {sportConfig.participantLabel.toLowerCase()} —</option>
                         {swimmers.filter(s => s.gender === event.gender || event.gender === 'mixed').map(s=><option key={s.id} value={s.id}>{s.name} ({s.college})</option>)}
                       </select></div>
                 }
-                <div className="w-48"><label className="label">Seed Time (s, blank=NT)</label>
+                <div className="w-48"><label className="label">{sportConfig.seedPerformanceLabel} (blank=NT/NM)</label>
                   <input className="input" type="number" step="0.01" placeholder="e.g. 54.32" value={entryForm.seed_time_ms}
                     onChange={e=>setEntryForm({...entryForm,seed_time_ms:e.target.value})}/></div>
                 <button type="submit" className="btn-primary">Add</button>
@@ -186,7 +211,7 @@ export default function EventDetailPage() {
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Lane</th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Name</th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">College</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Seed Time</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600">{sportConfig.seedPerformanceLabel}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -355,11 +380,22 @@ export default function EventDetailPage() {
             <h3 className="font-semibold mb-4">Edit Result — {editingResult.participant_name}</h3>
             <div className="space-y-3">
               <div>
-                <label className="label">Final Time (seconds)</label>
-                <input className="input" type="number" step="0.01"
-                  value={editForm.final_time_ms} placeholder="e.g. 54.32"
-                  disabled={editForm.dns || editForm.dnf || editForm.dq}
-                  onChange={e=>setEditForm({...editForm,final_time_ms:e.target.value})}/>
+                <label className="label">
+                  {event && meet && isFieldDiscipline(event.discipline, meet.sport_type)
+                    ? 'Best Mark (metres)'
+                    : 'Final Time (seconds)'}
+                </label>
+                {event && meet && isFieldDiscipline(event.discipline, meet.sport_type) ? (
+                  <input className="input" type="number" step="0.01"
+                    value={editForm.attempt_marks} placeholder="e.g. 8.95"
+                    disabled={editForm.dns || editForm.dnf || editForm.dq}
+                    onChange={e=>setEditForm({...editForm,attempt_marks:e.target.value})}/>
+                ) : (
+                  <input className="input" type="number" step="0.01"
+                    value={editForm.final_time_ms} placeholder="e.g. 54.32"
+                    disabled={editForm.dns || editForm.dnf || editForm.dq}
+                    onChange={e=>setEditForm({...editForm,final_time_ms:e.target.value})}/>
+                )}
               </div>
               <div className="flex items-center gap-4">
                 {(['dns','dnf','dq'] as const).map(flag => (
@@ -381,7 +417,7 @@ export default function EventDetailPage() {
                   <label className="label">DQ Code</label>
                   <select className="input" value={editForm.dq_code} onChange={e=>setEditForm({...editForm,dq_code:e.target.value})}>
                     <option value="">— select code —</option>
-                    {DQ_CODES.map(c => <option key={c} value={c}>{c}</option>)}
+                    {dqCodesList.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
               )}

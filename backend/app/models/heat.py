@@ -7,8 +7,8 @@ class Heat(Base):
     __tablename__ = "heats"
 
     id           = Column(String, primary_key=True)
-    event_id     = Column(String, ForeignKey("swim_events.id"), nullable=False)
+    event_id     = Column(String, ForeignKey("sport_events.id"), nullable=False)
     heat_number  = Column(Integer, nullable=False)
     scheduled_at = Column(DateTime, nullable=True)
 
-    event       = relationship("SwimEvent", back_populates="heats")
+    event       = relationship("SportEvent", back_populates="heats")

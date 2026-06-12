@@ -12,7 +12,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { ClipboardList, ChevronDown, ChevronRight, CheckCircle, Save, AlertCircle, Clock } from 'lucide-react'
 import { assignmentsApi, eventsApi, entriesApi, resultsApi, meetsApi } from './api'
-import type { Assignment, SwimEvent, IndividualEntry, RelayEntry, TimeResult, Meet } from './types'
+import type { Assignment, SportEvent, IndividualEntry, RelayEntry, TimeResult, Meet } from './types'
+import { getSportConfig, isFieldDiscipline } from './sportConfig'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -29,7 +30,7 @@ interface HeatGroup {
 
 interface EventWorkload {
   assignment: Assignment
-  event: SwimEvent | null
+  event: SportEvent | null
   meet: Meet | null
   heats: HeatGroup[]
   loading: boolean
@@ -58,15 +59,23 @@ const STATUS_COLOR: Record<string, string> = {
 interface TimeRowProps {
   row: EntryRow
   onSaved: () => void
+  event: SportEvent
+  meet: Meet
 }
 
-function TimeRow({ row, onSaved }: TimeRowProps) {
+function TimeRow({ row, onSaved, event, meet }: TimeRowProps) {
   const { entry, result, isRelay } = row
   const name = isRelay ? (entry as RelayEntry).team_name : (entry as IndividualEntry).swimmer_name
   const resultStatus = result?.status?.toUpperCase() ?? 'NO RESULT'
   const isFinalized = resultStatus === 'FINALIZED'
+  const isField = isFieldDiscipline(event.discipline, meet.sport_type)
 
   const [timeStr, setTimeStr] = useState(() => msToSeconds(result?.final_time_ms ?? undefined))
+  const [markStr, setMarkStr] = useState(() => {
+    if (!result?.attempt_marks || result.attempt_marks.length === 0) return ''
+    const best = Math.max(...result.attempt_marks.filter(m => m > 0))
+    return best > 0 ? (best / 100).toFixed(2) : ''
+  })
   const [dns, setDns]         = useState(result?.dns ?? false)
   const [dnf, setDnf]         = useState(result?.dnf ?? false)
   const [dq, setDq]           = useState(result?.dq ?? false)
@@ -78,6 +87,12 @@ function TimeRow({ row, onSaved }: TimeRowProps) {
   // Reset local state when result prop changes
   useEffect(() => {
     setTimeStr(msToSeconds(result?.final_time_ms ?? undefined))
+    let bestMark = ''
+    if (result?.attempt_marks && result.attempt_marks.length > 0) {
+      const best = Math.max(...result.attempt_marks.filter(m => m > 0))
+      if (best > 0) bestMark = (best / 100).toFixed(2)
+    }
+    setMarkStr(bestMark)
     setDns(result?.dns ?? false)
     setDnf(result?.dnf ?? false)
     setDq(result?.dq ?? false)
@@ -86,14 +101,22 @@ function TimeRow({ row, onSaved }: TimeRowProps) {
 
   const handleRecord = async () => {
     if (!result) { setError('No draft result found. Heats may not be seeded yet.'); return }
-    if (!dns && !dnf && !dq && !timeStr) { setError('Enter a time or mark DNS / DNF / DQ'); return }
+    if (!dns && !dnf && !dq && !timeStr && !markStr) { setError('Enter a performance or mark DNS / DNF / DQ'); return }
     setError(''); setSaving(true)
     try {
-      await resultsApi.edit(result.id, {
-        final_time_ms: (!dns && !dnf && !dq) ? secondsToMs(timeStr) : null,
+      const payload: any = {
         dns, dnf, dq,
         dq_code: dq ? dqCode || null : null,
-      })
+      }
+      if (!dns && !dnf && !dq) {
+        if (isField) {
+          const m = parseFloat(markStr)
+          payload.attempt_marks = !isNaN(m) && m > 0 ? [Math.round(m * 100)] : null
+        } else {
+          payload.final_time_ms = secondsToMs(timeStr)
+        }
+      }
+      await resultsApi.edit(result.id, payload)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
       onSaved()
@@ -116,16 +139,27 @@ function TimeRow({ row, onSaved }: TimeRowProps) {
       {!isRelay && (
         <td className="px-3 py-2.5 text-slate-500 text-sm">{(entry as IndividualEntry).college ?? '—'}</td>
       )}
-      {/* Time input */}
+      {/* Time/Mark input */}
       <td className="px-3 py-2.5 w-32">
-        <input
-          className="input py-1 text-sm font-mono w-28 disabled:opacity-40"
-          placeholder="e.g. 54.32"
-          type="number" step="0.01" min="0"
-          value={timeStr}
-          disabled={dns || dnf || dq || isFinalized}
-          onChange={e => setTimeStr(e.target.value)}
-        />
+        {isField ? (
+          <input
+            className="input py-1 text-sm font-mono w-28 disabled:opacity-40"
+            placeholder="e.g. 8.95"
+            type="number" step="0.01" min="0"
+            value={markStr}
+            disabled={dns || dnf || dq || isFinalized}
+            onChange={e => setMarkStr(e.target.value)}
+          />
+        ) : (
+          <input
+            className="input py-1 text-sm font-mono w-28 disabled:opacity-40"
+            placeholder="e.g. 54.32"
+            type="number" step="0.01" min="0"
+            value={timeStr}
+            disabled={dns || dnf || dq || isFinalized}
+            onChange={e => setTimeStr(e.target.value)}
+          />
+        )}
       </td>
       {/* DNS / DNF / DQ */}
       <td className="px-2 py-2.5">
@@ -202,7 +236,7 @@ export default function RecorderPage() {
         try {
           // We don't know meet_id from assignment alone — get event first
           const evRes = await eventsApi.getMy(a.event_id)
-          const event: SwimEvent = evRes.data
+          const event: SportEvent = evRes.data
           const meetRes = await meetsApi.get(event.meet_id)
           const meet: Meet = meetRes.data
           return { assignment: a, event, meet, heats: [], loading: true }
@@ -355,7 +389,7 @@ export default function RecorderPage() {
                       <span className="font-semibold">{event?.name ?? wl.assignment.event_name}</span>
                       {event && (
                         <span className="text-slate-400 text-sm ml-2">
-                          · {event.total_distance}m · {event.gender} · {event.stroke.replace(/_/g,' ')}
+                          · {event.total_distance > 0 ? `${event.total_distance}m` : 'Field'} · {event.gender} · {event.discipline?.replace(/_/g,' ')}
                         </span>
                       )}
                     </div>
@@ -389,12 +423,12 @@ export default function RecorderPage() {
                                 <tr className="border-b border-slate-100">
                                   <th className="px-3 py-2 text-left text-xs font-medium text-slate-400 w-12">Lane</th>
                                   <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">
-                                    {wl.event?.is_relay ? 'Team' : 'Swimmer'}
+                                    {wl.event?.is_relay ? 'Team' : getSportConfig(wl.meet?.sport_type || 'swimming').participantLabel}
                                   </th>
                                   {!wl.event?.is_relay && (
                                     <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">College</th>
                                   )}
-                                  <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">Time (sec)</th>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">{getSportConfig(wl.meet?.sport_type || 'swimming').performanceLabel}</th>
                                   <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">Flags</th>
                                   <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">Status</th>
                                   <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">Action</th>
@@ -405,6 +439,8 @@ export default function RecorderPage() {
                                   <TimeRow
                                     key={row.entry.id}
                                     row={row}
+                                    event={wl.event!}
+                                    meet={wl.meet!}
                                     onSaved={() => loadHeats(wl)}
                                   />
                                 ))}

@@ -11,19 +11,14 @@ def create_tables():
 
 
 app = FastAPI(
-    title="Swimming Competition Management System",
+    title="Sports Event Management System",
     description="""
-Manages the full lifecycle of a college swimming competition.
+Manages the full lifecycle of college sports competitions including Swimming and Track & Field.
 
 ### Result Workflow
 `DRAFT` (recorder enters) → `SAVED` (admin reviews) → `FINALIZED` (locked + ranked)
-
-### Events Supported
-Individual: Freestyle 50–1500m · Backstroke/Breaststroke/Butterfly 50–200m · IM 100–400m
-
-Relay: 4×50m & 4×100m Freestyle · 4×50m & 4×100m Medley · Mixed variants
     """,
-    version="1.0.0",
+    version="2.0.0",
 )
 
 app.add_middleware(
