@@ -2,10 +2,18 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# WeasyPrint needs these system libraries for PDF generation
+# System libraries required at runtime and build time:
+#   libpq-dev + gcc  → lets psycopg2-binary compile from source on platforms
+#                       that have no pre-built wheel (e.g. ARM Linux).
+#                       Without these the Docker build crashes with
+#                       "pg_config executable not found".
+#   libffi-dev       → required by python-jose (cryptography backend)
+#   shared-mime-info → required by xhtml2pdf for MIME type detection
 RUN apt-get update && apt-get install -y \
-    libpango-1.0-0 libpangoft2-1.0-0 libpangocairo-1.0-0 \
-    libcairo2 libgdk-pixbuf-xlib-2.0-0 libffi-dev shared-mime-info \
+    libpq-dev \
+    gcc \
+    libffi-dev \
+    shared-mime-info \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
